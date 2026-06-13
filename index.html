@@ -22,9 +22,12 @@
   .overlay {
     position:fixed; inset:0; display:flex; flex-direction:column;
     align-items:center; justify-content:center; text-align:center;
-    color:#fff; padding:20px; z-index:10;
+    color:#fff; z-index:10;
+    padding:max(20px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));
   }
   .hidden { display:none !important; }
+  /* スマホ横画面ではタイトル/ゲームオーバー画面を2カラムに並べ替えるためのグループ */
+  .titleLeft, .titleRight, .overLeft, .overRight { display:contents; }
 
   /* ---- タイトル ---- */
   #titleScreen { background:linear-gradient(180deg,#0a1a3a 0%,#1b3a6b 60%,#2e5a99 100%); }
@@ -65,7 +68,8 @@
   .hi { margin-top:16px; font-size:14px; color:#ffd34d; font-weight:700; }
 
   /* ---- HUD ---- */
-  #hud { position:fixed; top:0; left:0; right:0; z-index:5; padding:14px 16px;
+  #hud { position:fixed; top:0; left:0; right:0; z-index:5;
+    padding:max(14px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 14px max(16px,env(safe-area-inset-left));
     display:flex; justify-content:space-between; align-items:flex-start;
     color:#fff; pointer-events:none; text-shadow:0 2px 6px rgba(0,0,0,.5); }
   .hudBox { background:rgba(10,26,58,.45); border-radius:12px; padding:8px 14px; }
@@ -90,6 +94,42 @@
     font-size:16px; font-weight:700; z-index:5; pointer-events:none; opacity:.9;
     text-shadow:0 2px 6px rgba(0,0,0,.6); animation:floaty 1.4s ease-in-out infinite; }
   @keyframes floaty { 50% { transform:translateY(-8px); } }
+
+  /* ---- スマホ横画面（幅広・低height）対応 ---- */
+  @media (orientation:landscape) and (max-height:500px){
+    .overlay{
+      flex-direction:row; justify-content:center; align-items:center;
+      gap:clamp(14px,4vw,56px);
+      padding:10px max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left));
+      overflow-y:auto; touch-action:pan-y;
+    }
+    .titleLeft, .titleRight, .overLeft, .overRight{
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+    }
+
+    /* タイトル */
+    .logo{ font-size:clamp(16px,7vh,32px); line-height:1.15; }
+    .logo small{ letter-spacing:2px; font-size:clamp(8px,3vh,12px); margin-top:2px; }
+    .sub{ margin-top:6px; font-size:clamp(10px,3vh,13px); }
+    .pickWrap{ margin-top:0; width:auto; max-width:none; }
+    .pickLabel{ font-size:11px; margin-bottom:6px; }
+    .pickRow{ gap:6px; }
+    .arrow{ width:38px; height:38px; font-size:18px; }
+    .trainCard{ max-width:200px; padding:8px 8px 10px; }
+    #previewCanvas{ height:64px; }
+    .trainName{ font-size:clamp(13px,4.5vh,18px); margin-top:4px; }
+    .trainSeries{ font-size:10px; }
+    .dots{ margin-top:6px; }
+    .btn{ margin-top:10px; padding:10px 34px; font-size:clamp(13px,5vh,18px); }
+    .hi{ margin-top:6px; font-size:11px; }
+
+    /* ゲームオーバー */
+    .goTitle{ font-size:clamp(18px,8vh,34px); }
+    .newRec{ margin-top:4px; font-size:12px; }
+    .scoreBig{ font-size:clamp(24px,12vh,54px); margin-top:2px; }
+    .scoreSub{ font-size:11px; margin-top:4px; }
+    #homeBtn{ margin-top:8px !important; padding:9px 30px !important; font-size:12px !important; }
+  }
 </style>
 </head>
 <body>
@@ -97,25 +137,28 @@
 
 <!-- タイトル -->
 <div id="titleScreen" class="overlay">
-  <div class="logo">しんかんせん<br>ランナー<small>SHINKANSEN RUNNER</small></div>
-  <div class="sub">タップでジャンプ！ もう一回タップで2だんジャンプ！</div>
-
-  <div class="pickWrap">
-    <div class="pickLabel">▼ しんかんせんを えらぼう ▼</div>
-    <div class="pickRow">
-      <button class="arrow" id="prevBtn">‹</button>
-      <div class="trainCard">
-        <canvas id="previewCanvas"></canvas>
-        <div class="trainName" id="trainName"></div>
-        <div class="trainSeries" id="trainSeries"></div>
-      </div>
-      <button class="arrow" id="nextBtn">›</button>
-    </div>
-    <div class="dots" id="dots"></div>
+  <div class="titleLeft">
+    <div class="logo">しんかんせん<br>ランナー<small>SHINKANSEN RUNNER</small></div>
+    <div class="sub">タップでジャンプ！ もう一回タップで2だんジャンプ！</div>
   </div>
+  <div class="titleRight">
+    <div class="pickWrap">
+      <div class="pickLabel">▼ しんかんせんを えらぼう ▼</div>
+      <div class="pickRow">
+        <button class="arrow" id="prevBtn">‹</button>
+        <div class="trainCard">
+          <canvas id="previewCanvas"></canvas>
+          <div class="trainName" id="trainName"></div>
+          <div class="trainSeries" id="trainSeries"></div>
+        </div>
+        <button class="arrow" id="nextBtn">›</button>
+      </div>
+      <div class="dots" id="dots"></div>
+    </div>
 
-  <button class="btn" id="startBtn">スタート ▶</button>
-  <div class="hi" id="titleHi"></div>
+    <button class="btn" id="startBtn">スタート ▶</button>
+    <div class="hi" id="titleHi"></div>
+  </div>
 </div>
 
 <!-- HUD -->
@@ -140,13 +183,17 @@
 
 <!-- ゲームオーバー -->
 <div id="overScreen" class="overlay hidden">
-  <div class="goTitle">ゲームオーバー</div>
-  <div class="newRec hidden" id="newRec">★ ハイスコア こうしん！ ★</div>
-  <div class="scoreBig" id="finalScore">0</div>
-  <div class="scoreSub">きょり <span id="finalDist">0</span>m ＋ コイン <span id="finalCoin">0</span>まい</div>
-  <div class="hi" id="overHi"></div>
-  <button class="btn green" id="retryBtn">もういちど ▶</button>
-  <button class="btn" id="homeBtn" style="margin-top:14px;padding:12px 40px;font-size:16px;background:rgba(255,255,255,.15);color:#fff;box-shadow:none;">しんかんせんを かえる</button>
+  <div class="overLeft">
+    <div class="goTitle">ゲームオーバー</div>
+    <div class="newRec hidden" id="newRec">★ ハイスコア こうしん！ ★</div>
+    <div class="scoreBig" id="finalScore">0</div>
+    <div class="scoreSub">きょり <span id="finalDist">0</span>m ＋ コイン <span id="finalCoin">0</span>まい</div>
+  </div>
+  <div class="overRight">
+    <div class="hi" id="overHi"></div>
+    <button class="btn green" id="retryBtn">もういちど ▶</button>
+    <button class="btn" id="homeBtn" style="margin-top:14px;padding:12px 40px;font-size:16px;background:rgba(255,255,255,.15);color:#fff;box-shadow:none;">しんかんせんを かえる</button>
+  </div>
 </div>
 
 <script>
@@ -713,10 +760,10 @@
   const pctx = pc.getContext('2d');
   function drawPreview(){
     const dpr=Math.min(window.devicePixelRatio||1,2.5);
-    const w=pc.clientWidth, h=118;
+    const w=pc.clientWidth, h=pc.clientHeight||118;
     pc.width=w*dpr; pc.height=h*dpr; pctx.setTransform(dpr,0,0,dpr,0,0);
     pctx.clearRect(0,0,w,h);
-    const tw=Math.min(w*0.82, 290), th=tw/2.7;
+    const tw=Math.min(w*0.82, 290, h*2.3), th=tw/2.7;
     drawTrain(pctx, (w-tw)/2, h*0.56, tw, th, TRAINS[selected], {shadowY:th*0.5});
   }
   function updatePick(){
@@ -745,6 +792,10 @@
   updatePick();
   refreshTitleHi();
   window.addEventListener('resize', ()=>{ drawPreview(); });
+  // 画面回転直後はサイズが未確定なことがあるため少し待って再計算
+  window.addEventListener('orientationchange', ()=>{
+    setTimeout(()=>{ resize(); drawPreview(); }, 150);
+  });
   loop();
 })();
 </script>
