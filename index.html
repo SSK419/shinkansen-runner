@@ -14,9 +14,8 @@
     background:#0a1a3a;
     font-family:"Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;
     user-select:none; -webkit-user-select:none;
-    touch-action:none;
   }
-  #game { position:fixed; inset:0; }
+  #game { position:fixed; inset:0; touch-action:none; }
   canvas { display:block; width:100%; height:100%; }
 
   .overlay {
@@ -24,6 +23,7 @@
     align-items:center; justify-content:center; text-align:center;
     color:#fff; z-index:10;
     padding:max(20px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));
+    overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y;
   }
   .hidden { display:none !important; }
   /* スマホ横画面ではタイトル/ゲームオーバー画面を2カラムに並べ替えるためのグループ */
@@ -35,6 +35,18 @@
     color:#fff; text-shadow:0 4px 0 #c0182f, 0 0 22px rgba(120,180,255,.6); line-height:1.1; }
   .logo small { display:block; font-size:.42em; letter-spacing:6px; color:#9ecbff; margin-top:6px; font-weight:700; }
   .sub { margin-top:10px; font-size:clamp(12px,3.5vw,16px); color:#cfe2ff; }
+
+  .diffWrap { margin-top:20px; width:100%; max-width:420px; }
+  .diffRow { display:flex; gap:10px; justify-content:center; }
+  .diffBtn {
+    flex:1 1 0; max-width:160px; border:2px solid rgba(158,203,255,.35); border-radius:14px;
+    padding:10px 8px; background:rgba(255,255,255,.08); color:#cfe2ff;
+    font-size:clamp(13px,3.6vw,16px); font-weight:900; letter-spacing:1px; cursor:pointer;
+    transition:transform .1s, background .15s, color .15s, border-color .15s;
+  }
+  .diffBtn:active { transform:scale(.96); }
+  .diffBtn.on { background:linear-gradient(180deg,#ffd34d,#ffb300); color:#7a3b00; border-color:transparent; }
+  .diffDesc { margin-top:8px; font-size:12px; color:#9ecbff; min-height:1.4em; }
 
   .pickWrap { margin-top:22px; width:100%; max-width:560px; }
   .pickLabel { font-size:13px; color:#9ecbff; letter-spacing:3px; margin-bottom:10px; }
@@ -101,7 +113,6 @@
       flex-direction:row; justify-content:center; align-items:center;
       gap:clamp(14px,4vw,56px);
       padding:10px max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left));
-      overflow-y:auto; touch-action:pan-y;
     }
     .titleLeft, .titleRight, .overLeft, .overRight{
       display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -111,6 +122,9 @@
     .logo{ font-size:clamp(16px,7vh,32px); line-height:1.15; }
     .logo small{ letter-spacing:2px; font-size:clamp(8px,3vh,12px); margin-top:2px; }
     .sub{ margin-top:6px; font-size:clamp(10px,3vh,13px); }
+    .diffWrap{ margin-top:8px; max-width:none; }
+    .diffBtn{ font-size:clamp(10px,3vh,13px); padding:7px 6px; }
+    .diffDesc{ margin-top:4px; font-size:clamp(8px,2.4vh,11px); }
     .pickWrap{ margin-top:0; width:auto; max-width:none; }
     .pickLabel{ font-size:11px; margin-bottom:6px; }
     .pickRow{ gap:6px; }
@@ -140,6 +154,14 @@
   <div class="titleLeft">
     <div class="logo">しんかんせん<br>ランナー<small>SHINKANSEN RUNNER</small></div>
     <div class="sub">タップでジャンプ！ もう一回タップで2だんジャンプ！</div>
+    <div class="diffWrap">
+      <div class="pickLabel">▼ むずかしさ ▼</div>
+      <div class="diffRow">
+        <button class="diffBtn" id="easyBtn" data-diff="easy">かんたん</button>
+        <button class="diffBtn" id="hardBtn" data-diff="hard">むずかしい</button>
+      </div>
+      <div class="diffDesc" id="diffDesc"></div>
+    </div>
   </div>
   <div class="titleRight">
     <div class="pickWrap">
@@ -364,7 +386,15 @@
 
   // ===== ゲーム状態 =====
   const MAX_LIVES = 3;     // ライフ（このかいすうまでセーフ）
-  const WARMUP = 130;      // この距離(m)まではならし運転＝障害物なし
+  const WARMUP_EASY = 130; // かんたんモードでこの距離(m)まではならし運転＝障害物なし
+
+  // ===== むずかしさ =====
+  const DIFFS = {
+    easy: { warmup:WARMUP_EASY, hitScale:1.0, desc:"はじめは しょうがいぶつ なし" },
+    hard: { warmup:0,           hitScale:1.3, desc:"いきなり しょうがいぶつ・あたり判定もシビア" },
+  };
+  let difficulty = (localStorage.getItem("shinkansen_runner_diff")==="hard") ? "hard" : "easy";
+
   const G = {
     state:"title", // title, play, pause, over
     t:0,
@@ -392,6 +422,8 @@
     G.level=1; G.levelPop=0;
     G.obstacles=[]; G.coinsArr=[]; G.particles=[];
     G.spawnT=70; G.coinT=70; G.shake=0;
+    G.warmup = DIFFS[difficulty].warmup;
+    G.hitScale = DIFFS[difficulty].hitScale;
     updateLivesHud(); updateLevelHud();
     G.train = TRAINS[selected];
     // 雲・山（背景）
@@ -480,8 +512,8 @@
 
     // レベル（ならし運転のあと250mごと）
     if(G.levelPop>0) G.levelPop--;
-    if(G.dist > WARMUP){
-      const lv = 1 + Math.floor((G.dist - WARMUP)/250);
+    if(G.dist > G.warmup){
+      const lv = 1 + Math.floor((G.dist - G.warmup)/250);
       if(lv > G.level){ G.level=lv; G.levelPop=85; updateLevelHud(); }
     }
     G.bgScroll += G.speed*0.15;
@@ -502,7 +534,7 @@
     if(G.mountains.length && G.mountains[0].x < -W*0.4){ const m=G.mountains.shift(); m.x = G.mountains[G.mountains.length-1].x + W*0.4; m.h=H*(0.10+Math.random()*0.12); G.mountains.push(m); }
 
     // スポーン（ならし運転中は障害物なし）
-    if(G.dist > WARMUP){
+    if(G.dist > G.warmup){
       if(--G.spawnT<=0){
         spawnObstacle();
         // 距離が伸びるほど間隔（ピクセル）を狭める→出現ペースアップ
@@ -516,12 +548,15 @@
     if(G.invuln>0) G.invuln--;
 
     // 障害物移動＆判定
-    // 当たり判定は見た目よりかなり小さく甘めに（子ども向け）
-    const px=G.px-G.w*0.15, py=G.py-G.h*0.18, pw=G.w*0.30, ph=G.h*0.44;
+    // 当たり判定は見た目よりかなり小さく甘めに（子ども向け）。むずかしいモードは少し広げる
+    const S = G.hitScale;
+    const pw=G.w*0.30*S, ph=G.h*0.44*S;
+    const px=G.px-pw/2, py=(G.py+G.h*0.04)-ph/2;
     for(const o of G.obstacles){
       o.x -= G.speed;
       // 障害物側もしっかり内側に絞る
-      const ox=o.x+o.w*0.26, ow=o.w*0.48, oh=o.h*0.60;
+      const ow=o.w*0.48*S, oh=o.h*0.60*S;
+      const ox=o.x+o.w*0.5-ow/2;
       if(!o.hit && G.invuln<=0 && rectHit(px,py,pw,ph, ox, groundY-oh, ow, oh)){
         o.hit=true; loseLife(o);
         if(G.state!=="play") return;   // ライフ0でゲームオーバー
@@ -682,7 +717,7 @@
     if(G.state!=="play" && G.state!=="pause") return;
     const cx=W/2, cy=H*0.34;
     ctx.save(); ctx.textAlign="center"; ctx.textBaseline="middle";
-    if(G.dist < WARMUP){
+    if(G.warmup>0 && G.dist < G.warmup){
       const fz=Math.min(W,H)*0.06;
       ctx.font="900 "+fz+"px sans-serif";
       ctx.lineWidth=fz*0.16; ctx.strokeStyle="rgba(255,255,255,.9)"; ctx.fillStyle="#2e7d32";
@@ -690,12 +725,12 @@
       ctx.font="700 "+(fz*0.5)+"px sans-serif";
       ctx.lineWidth=fz*0.09; ctx.strokeText("しょうがいぶつ なし", cx, cy+fz*0.85); ctx.fillStyle="#1b5e20"; ctx.fillText("しょうがいぶつ なし", cx, cy+fz*0.85);
       // すすみ具合バー
-      const bw=Math.min(W*0.5,260), bx=cx-bw/2, by=cy+fz*1.5, p=Math.min(1,G.dist/WARMUP);
+      const bw=Math.min(W*0.5,260), bx=cx-bw/2, by=cy+fz*1.5, p=Math.min(1,G.dist/G.warmup);
       ctx.fillStyle="rgba(0,0,0,.18)"; rrect(ctx,bx,by,bw,fz*0.28,fz*0.14); ctx.fill();
       ctx.fillStyle="#43a047"; rrect(ctx,bx,by,bw*p,fz*0.28,fz*0.14); ctx.fill();
-    } else if(G.dist < WARMUP+45){
+    } else if(G.dist < G.warmup+45){
       // 警告（少しのあいだ）
-      const a = 1 - (G.dist-WARMUP)/45;
+      const a = 1 - (G.dist-G.warmup)/45;
       const fz=Math.min(W,H)*0.07;
       ctx.globalAlpha=Math.max(0,a);
       ctx.font="900 "+fz+"px sans-serif";
@@ -776,6 +811,15 @@
   }
   document.getElementById('prevBtn').onclick = ()=>{ selected=(selected-1+TRAINS.length)%TRAINS.length; updatePick(); };
   document.getElementById('nextBtn').onclick = ()=>{ selected=(selected+1)%TRAINS.length; updatePick(); };
+
+  // ===== タイトルのむずかしさセレクト =====
+  function updateDiffUI(){
+    document.getElementById('easyBtn').classList.toggle('on', difficulty==="easy");
+    document.getElementById('hardBtn').classList.toggle('on', difficulty==="hard");
+    document.getElementById('diffDesc').textContent = DIFFS[difficulty].desc;
+  }
+  document.getElementById('easyBtn').onclick = ()=>{ difficulty="easy"; localStorage.setItem("shinkansen_runner_diff","easy"); updateDiffUI(); };
+  document.getElementById('hardBtn').onclick = ()=>{ difficulty="hard"; localStorage.setItem("shinkansen_runner_diff","hard"); updateDiffUI(); };
   document.getElementById('startBtn').onclick = startGame;
   document.getElementById('retryBtn').onclick = startGame;
   document.getElementById('homeBtn').onclick = ()=>{ G.state="title"; hide('overScreen'); show('titleScreen'); refreshTitleHi(); };
@@ -790,6 +834,7 @@
   const savedTrain = parseInt(localStorage.getItem("shinkansen_runner_train")||"0",10);
   if(savedTrain>=0 && savedTrain<TRAINS.length) selected=savedTrain;
   updatePick();
+  updateDiffUI();
   refreshTitleHi();
   window.addEventListener('resize', ()=>{ drawPreview(); });
   // 画面回転直後はサイズが未確定なことがあるため少し待って再計算
